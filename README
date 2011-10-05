@@ -1,0 +1,5 @@
+Currently can backup and resore Blob storage only.
+Page/Block blob type is not considered.
+Blobs more than 64 Mb not supported.
+
+winazurestorage.py is taken from https://github.com/sriramk/winazurestorage
