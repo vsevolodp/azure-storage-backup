@@ -46,6 +46,9 @@ client = BlobStorage(host = args['host'], account_name = args['account_name'], s
 
 if (args['command'] == 'backup'):
     containers = client.list_containers()
+    if containers is None:
+        raise IOError
+
     for container_name, etag, last_modified in containers:
         blobs = client.list_blobs(container_name)
         for blob_name, etag, last_modified in blobs:
@@ -53,6 +56,8 @@ if (args['command'] == 'backup'):
             print os.path.join(container_name, blob_name)
 
             content = client.get_blob(container_name, blob_name)
+            if content is None:
+                raise IOError
 
             path = os.path.dirname(full_name)
 
@@ -71,15 +76,26 @@ if (args['command'] == 'backup'):
 else:
     for container in os.listdir(args['base_path']):
         dir_path = os.path.join(args['base_path'], container)
-        client.create_container(container)
+        code = client.create_container(container)
+        if (not code in [201, 409]):
+            raise IOError(code, 'Error creating container \'{0}\''.format(container))
+
         for subdir, containers, file_names in os.walk(dir_path):
             for file_name in file_names:
                 file_path = os.path.join(subdir, file_name)
-                blob = file_path[len(dir_path) + 1:]
-                print '{0}:{1}'.format(container, blob)
+                blob = file_path[len(dir_path) + 1:].replace('\\','/')
+
+                blob_path = '{0}/{1}'.format(container, blob)
+                if (os.stat(file_path).st_size > 64 * 1024 * 1024):
+                    print 'ERROR: {0} - blobs bigger than 64 Mb is not supported'.format(blob_path)
+                    continue
+                else:
+                    print blob_path
 
                 f = open(file_path, 'rb')
                 content = f.read()
                 f.close
 
-                client.put_blob(container, blob, content)
+                code = client.put_blob(container, blob, content)
+                if (code != 201):
+                    raise IOError(code, 'Error creating blob \'{0}/{1}\''.format(container, blob))
